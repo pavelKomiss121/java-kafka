@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: mcloud-orders
+  jpa:
+    hibernate:
+      ddl-auto: validate   # схему меняет Liquibase, не Hibernate
+    open-in-view: false
+    show-sql: true
+  liquibase:
+    change-log: classpath:liquibase/changelog-master.yml
+    enabled: true
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+server:
+  port: 8081   # 8080 занят AKHQ из MKAFKA-01
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+
+info:
+  app:
+    name: mcloud-orders
+    description: Order service for m-CRM Kafka course
+    team: mentee-power
+
+# своё свойство — имя топика (не orders.events!)
+app:
+  kafka:
+    topic: order-events
