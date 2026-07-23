@@ -30,6 +30,20 @@ services:
       POSTGRES_PASSWORD: orders
     ports:
       - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  pgadmin:
+    image: dpage/pgadmin4:8
+    depends_on:
+      - postgres
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: mentor@company.ru
+      PGADMIN_DEFAULT_PASSWORD: mentor
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
 
   akhq:
     image: tchiotludo/akhq:0.24.0
@@ -44,3 +58,7 @@ services:
             local-kafka:
               properties:
                 bootstrap.servers: "kafka:29092"
+
+volumes:
+  pgdata:
+  pgadmin_data:
