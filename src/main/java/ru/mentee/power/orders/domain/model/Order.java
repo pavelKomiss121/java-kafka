@@ -9,57 +9,49 @@ import java.util.UUID;
 public class Order {
     private UUID id;
     private UUID customerId;
+    private String region;
+    private OrderPriority priority;
+    private BigDecimal amount;
     private OrderStatus status;
     private Instant createdAt;
-    private BigDecimal amount;
     private List<OrderLine> lines = new ArrayList<>();
 
-
-    public BigDecimal getAmount() {
-        return amount;
-    }
-
-    public void setAmount(BigDecimal amount) {
-        this.amount = amount;
+    public static Order createNew(UUID customerId, String region, OrderPriority priority,
+                                  BigDecimal amount, List<OrderLine> lines) {
+        Order order = new Order();
+        order.id = UUID.randomUUID();
+        order.customerId = customerId;
+        order.region = region;
+        order.priority = priority;
+        order.amount = amount;
+        order.lines = lines;
+        order.status = OrderStatus.NEW; // или отдельный QUEUED на уровне ответа API
+        order.createdAt = Instant.now();
+        return order;
     }
 
     public UUID getId() {
         return id;
     }
-
-    public void setId(UUID id) {
-        this.id = id;
-    }
-
     public UUID getCustomerId() {
         return customerId;
     }
-
-    public void setCustomerId(UUID customerId) {
-        this.customerId = customerId;
+    public String getRegion() {
+        return region;
     }
-
+    public OrderPriority getPriority() {
+        return priority;
+    }
+    public BigDecimal getAmount() {
+        return amount;
+    }
     public OrderStatus getStatus() {
         return status;
     }
-
-    public void setStatus(OrderStatus status) {
-        this.status = status;
-    }
-
     public Instant getCreatedAt() {
         return createdAt;
     }
-
-    public void setCreatedAt(Instant createdAt) {
-        this.createdAt = createdAt;
-    }
-
     public List<OrderLine> getLines() {
         return lines;
-    }
-
-    public void setLines(List<OrderLine> lines) {
-        this.lines = lines;
     }
 }

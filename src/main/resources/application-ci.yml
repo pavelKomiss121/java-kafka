@@ -16,7 +16,10 @@ spring:
     exclude:
       - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
 
-# health kafka в ci можно отключить отдельным флагом в коде
 app:
   kafka:
     health-enabled: false
+    topics:
+      high: orders.priority.high
+      normal: orders.priority.normal
+      low: orders.priority.low
