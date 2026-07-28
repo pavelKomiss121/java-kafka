@@ -1,0 +1,16 @@
+{
+  "totals": {
+    "success": 3,
+    "failure": 0
+  },
+  "topics": {
+    "orders.priority.high": {
+      "success": 2,
+      "failure": 0
+    },
+    "orders.priority.normal": {
+      "success": 1,
+      "failure": 0
+    }
+  }
+}

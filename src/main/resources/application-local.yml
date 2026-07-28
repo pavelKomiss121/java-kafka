@@ -3,14 +3,25 @@ spring:
     url: jdbc:postgresql://localhost:5432/orders
     username: orders
     password: orders
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+        spring.json.add.type.headers: false
+
   jpa:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
-  kafka:
-    bootstrap-servers: localhost:9092
-
 app:
   kafka:
     health-enabled: true
+    topics:
+      high: orders.priority.high
+      normal: orders.priority.normal
+      low: orders.priority.low

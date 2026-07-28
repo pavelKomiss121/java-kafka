@@ -9,7 +9,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.stereotype.Component;
 
-import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @Component
@@ -17,33 +17,37 @@ import java.util.concurrent.TimeUnit;
 public class KafkaHealthIndicator implements HealthIndicator {
 
     private final KafkaAdmin kafkaAdmin;
-    private final String topic;
+    private final String highTopic;
+    private final String normalTopic;
+    private final String lowTopic;
 
     public KafkaHealthIndicator(
             KafkaAdmin kafkaAdmin,
-            @Value("${app.kafka.topic}") String topic
+            @Value("${app.kafka.topics.high}") String highTopic,
+            @Value("${app.kafka.topics.normal}") String normalTopic,
+            @Value("${app.kafka.topics.low}") String lowTopic
     ) {
         this.kafkaAdmin = kafkaAdmin;
-        this.topic = topic;
+        this.highTopic = highTopic;
+        this.normalTopic = normalTopic;
+        this.lowTopic = lowTopic;
     }
 
     @Override
     public Health health() {
+        List<String> topics = List.of(highTopic, normalTopic, lowTopic);
         try (AdminClient client = AdminClient.create(kafkaAdmin.getConfigurationProperties())) {
-            // 1) брокер отвечает
             client.describeCluster().nodes().get(3, TimeUnit.SECONDS);
-
-            // 2) топик существует
-            DescribeTopicsResult result = client.describeTopics(Collections.singletonList(topic));
+            DescribeTopicsResult result = client.describeTopics(topics);
             result.allTopicNames().get(3, TimeUnit.SECONDS);
 
             return Health.up()
-                    .withDetail("topic", topic)
+                    .withDetail("topics", topics)
                     .withDetail("broker", "reachable")
                     .build();
         } catch (Exception e) {
             return Health.down(e)
-                    .withDetail("topic", topic)
+                    .withDetail("topics", topics)
                     .build();
         }
     }

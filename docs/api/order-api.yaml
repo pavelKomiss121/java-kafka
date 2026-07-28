@@ -1,0 +1,138 @@
+openapi: 3.0.3
+info:
+  title: mcloud-orders Order Producer API
+  version: 0.2.0
+servers:
+  - url: http://localhost:8081
+paths:
+  /api/v1/orders:
+    post:
+      summary: Принять заказ и отправить событие в Kafka
+      operationId: submitOrder
+      tags: [Orders]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderRequest'
+      responses:
+        '202':
+          description: Заказ принят, событие поставлено в очередь
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderAcceptedResponse'
+        '400':
+          description: Некорректные данные заказа
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Не удалось отправить событие
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/orders/metrics:
+    get:
+      summary: Показать статистику отправки заказов
+      operationId: getOrderProducerMetrics
+      tags: [Orders]
+      responses:
+        '200':
+          description: Текущие метрики по топикам и статусам
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProducerMetricsResponse'
+
+components:
+  schemas:
+    OrderRequest:
+      type: object
+      required: [customerId, region, priority, amount, lines]
+      properties:
+        customerId:
+          type: string
+          format: uuid
+        region:
+          type: string
+          example: EU
+        priority:
+          type: string
+          enum: [HIGH, NORMAL, LOW]
+        amount:
+          type: number
+          format: double
+          minimum: 0.01
+        lines:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/OrderLineRequest'
+
+    OrderLineRequest:
+      type: object
+      required: [productId, quantity, price]
+      properties:
+        productId:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+          minimum: 1
+        price:
+          type: number
+          format: double
+          minimum: 0
+
+    OrderAcceptedResponse:
+      type: object
+      required: [orderId, status, dispatchedAt]
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [QUEUED]
+        dispatchedAt:
+          type: string
+          format: date-time
+
+    ProducerMetricsResponse:
+      type: object
+      required: [totals, topics]
+      properties:
+        totals:
+          type: object
+          required: [success, failure]
+          properties:
+            success:
+              type: integer
+              minimum: 0
+            failure:
+              type: integer
+              minimum: 0
+        topics:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              success:
+                type: integer
+              failure:
+                type: integer
+
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: ORDER_VALIDATION_FAILED
+        message:
+          type: string

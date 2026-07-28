@@ -3,7 +3,7 @@ spring:
     name: mcloud-orders
   jpa:
     hibernate:
-      ddl-auto: validate   # схему меняет Liquibase, не Hibernate
+      ddl-auto: validate
     open-in-view: false
     show-sql: true
   liquibase:
@@ -13,10 +13,14 @@ spring:
     bootstrap-servers: localhost:9092
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+        spring.json.add.type.headers: false
 
 server:
-  port: 8081   # 8080 занят AKHQ из MKAFKA-01
+  port: 8081
 
 management:
   endpoints:
@@ -35,7 +39,10 @@ info:
     description: Order service for m-CRM Kafka course
     team: mentee-power
 
-# своё свойство — имя топика (не orders.events!)
 app:
   kafka:
-    topic: order-events
+    health-enabled: true
+    topics:
+      high: orders.priority.high
+      normal: orders.priority.normal
+      low: orders.priority.low
