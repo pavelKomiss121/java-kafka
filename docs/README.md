@@ -1,27 +1,27 @@
-# Документация курса Kafka → mcloud-orders
+# Документация в репозитории
 
-Оглавление репозитория. Уроки разложены **по спринтам**, чтобы не смешивались.
+**Уроки курса Kafka перенесены в Obsidian-хранилище** — здесь остаётся только то, что нужно коду.
+
+## Где теория и уроки
+
+`E:\projects\documentation\Хранилище_1\02-Программирование\Java\08-Kafka\kafka-mcloud-orders\`
+
+Старт: `00-Содержание-курса.md` → Спринт-01 (MKAFKA-01…03 ready).
+
+| Что | В vault |
+|-----|---------|
+| План курса | `00-Содержание-курса.md` |
+| MKAFKA-01…03 + атласы | `Спринт-01-Fundamentals/` |
+| Шаблоны / OpenAPI / stubs | `reference/` |
+
+## Что осталось в этом репо
 
 ```
 docs/
-├── README.md                          ← ты здесь
-├── 00-план-курса-kafka.md             ← карта всего курса
-├── sprint-01-fundamentals/            ← MKAFKA-01, MKAFKA-02
-├── sprint-02-producer-consumer/       ← MKAFKA-03+ (пока пусто)
-├── sprint-03-production/              ← retry/DLQ/lag (пока пусто)
-├── api/                               ← OpenAPI контракты
-└── architecture/                      ← диаграммы пакетов
+├── README.md          ← ты здесь
+├── api/               ← OpenAPI контракт (источник правды для кода)
+└── architecture/      ← короткие схемы по коду
 ```
 
-## С чего начать
-
-1. [План курса](00-план-курса-kafka.md)
-2. Спринт 01 → [README спринта](sprint-01-fundamentals/README.md)
-
-| Спринт | Папка | Уроки |
-|--------|-------|-------|
-| 01 Fundamentals | [sprint-01-fundamentals](sprint-01-fundamentals/) | MKAFKA-01, MKAFKA-02 |
-| 02 Producer/Consumer | [sprint-02-producer-consumer](sprint-02-producer-consumer/) | MKAFKA-03 (+ атлас), MKAFKA-04 later |
-| 03 Production | [sprint-03-production](sprint-03-production/) | later |
-| API | [api](api/) | `order-api.yaml` |
-| Архитектура | [architecture](architecture/) | UML / схемы |
+Практика (код, docker-compose, коммиты) — в этом репозитории.  
+Теория и пошаговые уроки — в хранилище.

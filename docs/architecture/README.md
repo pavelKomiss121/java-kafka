@@ -1,11 +1,12 @@
 # Архитектура
 
-Сюда клади диаграммы:
+Сюда клади диаграммы по коду этого репозитория:
 
 - зависимости пакетов `domain` / `ports` / `adapters` (IntelliJ UML)
 - схема потока заказа → Kafka
 - C4 / sequence — по желанию
 
-Самостоятельное задание MKAFKA-02: приложи диаграмму сюда.
+Теория ports & adapters и stubs классов — в vault:  
+`kafka-mcloud-orders/reference/ARCHITECTURE-STUBS.md`.
 
-↑ [План курса](../00-план-курса-kafka.md)
+↑ [docs README](../README.md)
