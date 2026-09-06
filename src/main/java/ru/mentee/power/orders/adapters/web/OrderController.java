@@ -7,12 +7,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import ru.mentee.power.orders.adapters.metrics.ConsumerMetricsRegistry;
 import ru.mentee.power.orders.adapters.metrics.ProducerMetricsRegistry;
-import ru.mentee.power.orders.adapters.web.dto.ErrorResponse;
-import ru.mentee.power.orders.adapters.web.dto.OrderAcceptedResponse;
-import ru.mentee.power.orders.adapters.web.dto.OrderRequest;
-import ru.mentee.power.orders.adapters.web.dto.OrderResponse;
-import ru.mentee.power.orders.adapters.web.dto.ProducerMetricsResponse;
+import ru.mentee.power.orders.adapters.web.dto.*;
 import ru.mentee.power.orders.adapters.web.mapper.OrderMapper;
 import ru.mentee.power.orders.ports.incoming.PlaceOrderPort;
 
@@ -31,15 +28,18 @@ public class OrderController {
     private final PlaceOrderPort placeOrderPort;
     private final OrderMapper orderMapper;
     private final ProducerMetricsRegistry metricsRegistry;
+    private final ConsumerMetricsRegistry consumerMetricsRegistry;
 
     public OrderController(
             PlaceOrderPort placeOrderPort,
             OrderMapper orderMapper,
-            ProducerMetricsRegistry metricsRegistry
+            ProducerMetricsRegistry metricsRegistry,
+            ConsumerMetricsRegistry consumerMetricsRegistry
     ) {
         this.placeOrderPort = placeOrderPort;
         this.orderMapper = orderMapper;
         this.metricsRegistry = metricsRegistry;
+        this.consumerMetricsRegistry = consumerMetricsRegistry;
     }
 
     @PostMapping
@@ -59,6 +59,22 @@ public class OrderController {
             return ResponseEntity.internalServerError()
                     .body(new ErrorResponse("ORDER_DISPATCH_FAILED", ex.getMessage()));
         }
+    }
+
+    /**
+     * Метрики consumer'а: сколько заказов из Kafka реально долетело до БД.
+     * Отдельный путь от продюсерских /metrics — считают разные вещи (send vs persist).
+     */
+    @GetMapping("/consumers/metrics")
+    public ConsumerMetricsResponse consumerMetrics() {
+        ConsumerMetricsRegistry.Snapshot snapshot = consumerMetricsRegistry.snapshot();
+        return new ConsumerMetricsResponse(
+                snapshot.processed(),
+                snapshot.duplicates(),
+                snapshot.rejected(),
+                snapshot.byPriority(),
+                snapshot.byRegion()
+        );
     }
 
     /**
