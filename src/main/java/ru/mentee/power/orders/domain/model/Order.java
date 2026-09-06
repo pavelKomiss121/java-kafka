@@ -30,6 +30,25 @@ public class Order {
         return order;
     }
 
+    /**
+     * Восстанавливает Order на стороне consumer'а из уже опубликованного события.
+     * В отличие от {@link #createNew}, id не генерируется заново — он приходит
+     * из payload и обязан совпасть с id, который присвоил продюсер.
+     */
+    public static Order restoreFromEvent(UUID id, UUID customerId, String region, OrderPriority priority,
+                                         BigDecimal amount, List<OrderLine> lines) {
+        Order order = new Order();
+        order.id = id;
+        order.customerId = customerId;
+        order.region = region;
+        order.priority = priority;
+        order.amount = amount;
+        order.lines = lines;
+        order.status = OrderStatus.NEW;
+        order.createdAt = Instant.now();
+        return order;
+    }
+
     public UUID getId() {
         return id;
     }

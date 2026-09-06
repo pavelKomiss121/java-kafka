@@ -24,6 +24,21 @@ public class OrderEntity {
     @Column(nullable = false, length = 32)
     private String status;
 
+    @Column(nullable = false, length = 64)
+    private String region;
+
+    @Column(nullable = false, length = 16)
+    private String priority;
+
+    @Column(name = "kafka_partition")
+    private Integer kafkaPartition;
+
+    @Column(name = "kafka_offset")
+    private Long kafkaOffset;
+
+    @Column(name = "processed_at")
+    private Instant processedAt;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -76,5 +91,45 @@ public class OrderEntity {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getRegion() {
+        return region;
+    }
+
+    public void setRegion(String region) {
+        this.region = region;
+    }
+
+    public String getPriority() {
+        return priority;
+    }
+
+    public void setPriority(String priority) {
+        this.priority = priority;
+    }
+
+    public Integer getKafkaPartition() {
+        return kafkaPartition;
+    }
+
+    public void setKafkaPartition(Integer kafkaPartition) {
+        this.kafkaPartition = kafkaPartition;
+    }
+
+    public Long getKafkaOffset() {
+        return kafkaOffset;
+    }
+
+    public void setKafkaOffset(Long kafkaOffset) {
+        this.kafkaOffset = kafkaOffset;
+    }
+
+    public Instant getProcessedAt() {
+        return processedAt;
+    }
+
+    public void setProcessedAt(Instant processedAt) {
+        this.processedAt = processedAt;
     }
 }

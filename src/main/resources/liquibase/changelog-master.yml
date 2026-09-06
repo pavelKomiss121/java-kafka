@@ -1,3 +1,7 @@
 databaseChangeLog:
   - include:
       file: liquibase/changesets/20250220-create-orders-table.sql
+  - include:
+      file: liquibase/changesets/20260906-add-consumer-columns.sql
+  - include:
+      file: liquibase/changesets/20260906-create-order-lines-table.sql
