@@ -3,20 +3,30 @@ package ru.mentee.power.orders.adapters.kafka;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import ru.mentee.power.orders.adapters.persistence.OrderRepository;
 import ru.mentee.power.orders.domain.model.OrderPriority;
 import ru.mentee.power.orders.ports.outgoing.OrderEventPayload;
+import ru.mentee.power.orders.ports.outgoing.PricingClient;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.when;
 
+/**
+ * Проверяет только Kafka-пайплайн (listener -> use case -> persistence).
+ * Вызов внешнего сервиса скидок замокан — его retry/fallback/DLQ отдельно
+ * покрыты PricingHttpClientRetryTest, без embedded Kafka.
+ */
 @SpringBootTest
 @ActiveProfiles("itest")
 @EmbeddedKafka(partitions = 1, topics = {
@@ -30,8 +40,13 @@ class OrderEventListenerIntegrationTest {
     @Autowired
     private OrderRepository orderRepository;
 
+    @MockBean
+    private PricingClient pricingClient;
+
     @Test
     void listenerPersistsOrderFromKafkaEvent() throws InterruptedException {
+        when(pricingClient.fetchDiscount(any(), anyString())).thenReturn(BigDecimal.ZERO);
+
         UUID orderId = UUID.randomUUID();
         OrderEventPayload payload = new OrderEventPayload(
                 orderId,

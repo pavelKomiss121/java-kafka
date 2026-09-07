@@ -38,3 +38,7 @@ app:
       high: orders.priority.high
       normal: orders.priority.normal
       low: orders.priority.low
+      dlq: orders.priority.dlq
+
+pricing:
+  base-url: http://localhost:8081

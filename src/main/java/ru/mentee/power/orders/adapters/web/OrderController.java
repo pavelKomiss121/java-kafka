@@ -72,8 +72,11 @@ public class OrderController {
                 snapshot.processed(),
                 snapshot.duplicates(),
                 snapshot.rejected(),
+                snapshot.retryAttempts(),
+                snapshot.dlqCount(),
                 snapshot.byPriority(),
-                snapshot.byRegion()
+                snapshot.byRegion(),
+                snapshot.dlqByPriority()
         );
     }
 
