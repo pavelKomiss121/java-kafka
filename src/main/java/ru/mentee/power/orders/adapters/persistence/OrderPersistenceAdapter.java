@@ -3,18 +3,13 @@ package ru.mentee.power.orders.adapters.persistence;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Component;
 import ru.mentee.power.orders.domain.model.Order;
+import ru.mentee.power.orders.domain.model.OrderStatus;
 import ru.mentee.power.orders.ports.outgoing.OrderPersistencePort;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * JPA-адаптер: реализует исходящий порт. С MKAFKA-06 разделён на две операции —
- * savePending пишет producer-сторона (до Kafka), markProcessed — consumer-сторона
- * (после успешной обработки события). Раньше был единственный save(order, partition, offset),
- * вызываемый только консьюмером.
- */
 @Component
 public class OrderPersistenceAdapter implements OrderPersistencePort {
 
@@ -61,5 +56,17 @@ public class OrderPersistenceAdapter implements OrderPersistencePort {
         entity.setKafkaOffset(offset);
         entity.setProcessedAt(Instant.now());
         orderRepository.save(entity);
+    }
+
+    @Override
+    @Transactional
+    public void markCancelled(UUID orderId, int partition, long offset) {
+        orderRepository.findById(orderId).ifPresent(entity -> {
+            entity.setStatus(OrderStatus.CANCELLED.name());
+            entity.setKafkaPartition(partition);
+            entity.setKafkaOffset(offset);
+            entity.setProcessedAt(Instant.now());
+            orderRepository.save(entity);
+        });
     }
 }

@@ -1,6 +1,7 @@
 package ru.mentee.power.orders.adapters.integration;
 
 import io.github.resilience4j.retry.annotation.Retry;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -22,7 +23,7 @@ public class PricingHttpClient implements PricingClient {
 
     private final RestClient restClient;
 
-    public PricingHttpClient(RestClient restClient) {
+    public PricingHttpClient(@Qualifier("pricingRestClient") RestClient restClient) {
         this.restClient = restClient;
     }
 

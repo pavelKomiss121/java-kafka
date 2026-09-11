@@ -67,3 +67,13 @@ resilience4j:
         wait-duration: 500ms
         retry-exceptions:
           - ru.mentee.power.orders.adapters.integration.ExternalServiceException
+      warehouse-processing:
+        max-attempts: 3
+        wait-duration: 500ms
+        retry-exceptions:
+          - ru.mentee.power.orders.adapters.integration.ExternalServiceException
+      payments-processing:
+        max-attempts: 3
+        wait-duration: 500ms
+        retry-exceptions:
+          - ru.mentee.power.orders.adapters.integration.ExternalServiceException
