@@ -34,4 +34,12 @@ public class KafkaProducerConfig {
                 .replicas(1)
                 .build();
     }
+
+    @Bean
+    NewTopic ordersPriorityDlq(@Value("${app.kafka.topics.dlq}") String name) {
+        return TopicBuilder.name(name)
+                .partitions(1)
+                .replicas(1)
+                .build();
+    }
 }

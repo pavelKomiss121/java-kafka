@@ -46,3 +46,12 @@ app:
       high: orders.priority.high
       normal: orders.priority.normal
       low: orders.priority.low
+
+resilience4j:
+  retry:
+    instances:
+      order-processing:
+        max-attempts: 3
+        wait-duration: 500ms
+        retry-exceptions:
+          - ru.mentee.power.orders.adapters.integration.ExternalServiceException

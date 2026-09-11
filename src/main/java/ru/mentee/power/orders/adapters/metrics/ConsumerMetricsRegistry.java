@@ -9,21 +9,20 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * Счётчики consumer'а: сколько заказов обработано (по priority/region),
- * сколько дублей пропущено и сколько событий отклонено валидацией.
- */
 @Component
 public class ConsumerMetricsRegistry {
 
     private final Map<OrderPriority, AtomicLong> processedByPriority = new EnumMap<>(OrderPriority.class);
     private final Map<String, AtomicLong> processedByRegion = new ConcurrentHashMap<>();
+    private final Map<OrderPriority, AtomicLong> dlqByPriority = new EnumMap<>(OrderPriority.class);
     private final AtomicLong duplicates = new AtomicLong();
     private final AtomicLong rejected = new AtomicLong();
+    private final AtomicLong retryAttempts = new AtomicLong();
 
     public ConsumerMetricsRegistry() {
         for (OrderPriority priority : OrderPriority.values()) {
             processedByPriority.put(priority, new AtomicLong());
+            dlqByPriority.put(priority, new AtomicLong());
         }
     }
 
@@ -32,11 +31,20 @@ public class ConsumerMetricsRegistry {
         processedByRegion.computeIfAbsent(region, r -> new AtomicLong()).incrementAndGet();
     }
 
-    public void duplicate(){
-        duplicates.getAndIncrement();
+    public void duplicate() {
+        duplicates.incrementAndGet();
     }
+
     public void rejected() {
         rejected.incrementAndGet();
+    }
+
+    public void retryAttempt() {
+        retryAttempts.incrementAndGet();
+    }
+
+    public void dlq(OrderPriority priority) {
+        dlqByPriority.get(priority).incrementAndGet();
     }
 
     public Snapshot snapshot() {
@@ -46,16 +54,24 @@ public class ConsumerMetricsRegistry {
         Map<String, Long> byRegion = new LinkedHashMap<>();
         processedByRegion.forEach((region, count) -> byRegion.put(region, count.get()));
 
-        long totalProcessed = processedByPriority.values().stream().mapToLong(AtomicLong::get).sum();
+        Map<String, Long> dlqByPriorityView = new LinkedHashMap<>();
+        dlqByPriority.forEach((priority, count) -> dlqByPriorityView.put(priority.name(), count.get()));
 
-        return new Snapshot(totalProcessed, duplicates.get(), rejected.get(), byPriority, byRegion);
+        long totalProcessed = processedByPriority.values().stream().mapToLong(AtomicLong::get).sum();
+        long totalDlq = dlqByPriority.values().stream().mapToLong(AtomicLong::get).sum();
+
+        return new Snapshot(totalProcessed, duplicates.get(), rejected.get(), retryAttempts.get(),
+                totalDlq, byPriority, byRegion, dlqByPriorityView);
     }
 
     public record Snapshot(
             long processed,
             long duplicates,
             long rejected,
+            long retryAttempts,
+            long dlqCount,
             Map<String, Long> byPriority,
-            Map<String, Long> byRegion
+            Map<String, Long> byRegion,
+            Map<String, Long> dlqByPriority
     ) {}
 }

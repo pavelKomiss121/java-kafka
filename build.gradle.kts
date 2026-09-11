@@ -34,12 +34,18 @@ dependencies {
     // Миграции схемы
     implementation("org.liquibase:liquibase-core")
 
+    // Resilience4j: управляемый retry + AOP-прокси для @Retry
+    implementation("io.github.resilience4j:resilience4j-spring-boot3:2.2.0")
+    implementation("org.springframework.boot:spring-boot-starter-aop")
+
     // Тесты
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.kafka:spring-kafka-test")
     // для профиля ci — in-memory БД
     testRuntimeOnly("com.h2database:h2")
     runtimeOnly("com.h2database:h2")
+    // Тесты: мок внешнего HTTP-сервиса для проверки retry/fallback
+    testImplementation("org.wiremock:wiremock-standalone:3.9.2")
 }
 
 tasks.withType<Test> {

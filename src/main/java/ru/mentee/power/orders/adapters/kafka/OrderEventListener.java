@@ -2,6 +2,7 @@ package ru.mentee.power.orders.adapters.kafka;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.context.annotation.Profile;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
@@ -13,10 +14,6 @@ import ru.mentee.power.orders.adapters.metrics.ConsumerMetricsRegistry;
 import ru.mentee.power.orders.ports.incoming.ProcessOrderEventPort;
 import ru.mentee.power.orders.ports.outgoing.OrderEventPayload;
 
-/**
- * Kafka-адаптер: читает orders.priority.* и подтверждает offset вручную,
- * только после успешного сохранения в БД (через ProcessOrderEventPort).
- */
 @Component
 @Profile("!ci")
 public class OrderEventListener {
@@ -44,18 +41,20 @@ public class OrderEventListener {
             @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
             @Header(KafkaHeaders.OFFSET) long offset,
             Acknowledgment ack) {
+        MDC.put("orderId", String.valueOf(payload.orderId()));
+        MDC.put("priority", String.valueOf(payload.priority()));
+        MDC.put("region", payload.region());
         try {
             processOrderEventPort.handle(payload, partition, offset);
             acknowledge(ack);
         } catch (IllegalArgumentException ex) {
-            // "ядовитое" сообщение: повторная попытка ничего не исправит — считаем метрику и коммитим офсет
             metrics.rejected();
             log.warn("Rejected invalid order event at partition={}, offset={}: {}",
                     partition, offset, ex.getMessage());
             acknowledge(ack);
+        } finally {
+            MDC.clear();
         }
-        // остальные исключения (например, недоступна БД) не ловим намеренно:
-        // офсет не коммитится, DefaultErrorHandler повторит доставку (см. KafkaConsumerConfig)
     }
 
     private void acknowledge(Acknowledgment ack) {
