@@ -8,9 +8,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.mentee.power.orders.adapters.integration.PricingUnavailableException;
 import ru.mentee.power.orders.adapters.metrics.ConsumerMetricsRegistry;
+import ru.mentee.power.orders.adapters.metrics.IdempotencyMetricsRegistry;
 import ru.mentee.power.orders.domain.model.Order;
 import ru.mentee.power.orders.domain.model.OrderPriority;
 import ru.mentee.power.orders.ports.outgoing.DeadLetterPort;
+import ru.mentee.power.orders.ports.outgoing.DedupStorePort;
 import ru.mentee.power.orders.ports.outgoing.OrderEventPayload;
 import ru.mentee.power.orders.ports.outgoing.OrderPersistencePort;
 import ru.mentee.power.orders.ports.outgoing.PricingClient;
@@ -46,17 +48,26 @@ class OrderConsumerUseCaseTest {
     @Mock
     ConsumerMetricsRegistry metrics;
 
+    @Mock
+    DedupStorePort dedupStorePort;
+
+    @Mock
+    IdempotencyMetricsRegistry idempotencyMetrics;
+
     OrderConsumerUseCase useCase;
 
     @BeforeEach
     void setUp() {
-        useCase = new OrderConsumerUseCase(persistencePort, pricingClient, deadLetterPort, metrics);
+        useCase = new OrderConsumerUseCase(
+                persistencePort, pricingClient, deadLetterPort, metrics,
+                dedupStorePort, idempotencyMetrics, 48);
     }
 
     @Test
     void handle_marksProcessed_andRecordsMetric() {
         UUID orderId = UUID.randomUUID();
         OrderEventPayload payload = payload(orderId);
+        when(dedupStorePort.tryReserve(eq(orderId), eq(payload.eventId()), any())).thenReturn(true);
         when(persistencePort.isAlreadyProcessed(orderId)).thenReturn(false);
         when(pricingClient.fetchDiscount(orderId, "EU")).thenReturn(BigDecimal.ZERO);
 
@@ -64,6 +75,8 @@ class OrderConsumerUseCaseTest {
 
         verify(persistencePort).markProcessed(any(), anyInt(), anyLong());
         verify(metrics).processed(OrderPriority.HIGH, "EU");
+        verify(idempotencyMetrics).miss();
+        verify(idempotencyMetrics, never()).hit();
         verify(metrics, never()).duplicate();
         verify(metrics, never()).dlq(any());
         verifyNoInteractions(deadLetterPort);
@@ -73,6 +86,7 @@ class OrderConsumerUseCaseTest {
     void handle_appliesDiscountToProcessedAmount() {
         UUID orderId = UUID.randomUUID();
         OrderEventPayload payload = payload(orderId);
+        when(dedupStorePort.tryReserve(eq(orderId), eq(payload.eventId()), any())).thenReturn(true);
         when(persistencePort.isAlreadyProcessed(orderId)).thenReturn(false);
         when(pricingClient.fetchDiscount(orderId, "EU")).thenReturn(new BigDecimal("0.05"));
 
@@ -84,14 +98,30 @@ class OrderConsumerUseCaseTest {
     }
 
     @Test
+    void handle_skipsRedeliveredEvent_beforeReachingPricingOrIsAlreadyProcessed() {
+        UUID orderId = UUID.randomUUID();
+        OrderEventPayload payload = payload(orderId);
+        when(dedupStorePort.tryReserve(eq(orderId), eq(payload.eventId()), any())).thenReturn(false);
+
+        useCase.handle(payload, 1, 55L);
+
+        verify(idempotencyMetrics).hit();
+        verify(idempotencyMetrics, never()).miss();
+        verify(metrics).duplicate();
+        verifyNoInteractions(persistencePort, pricingClient, deadLetterPort);
+    }
+
+    @Test
     void handle_skipsAlreadyProcessed() {
         UUID orderId = UUID.randomUUID();
         OrderEventPayload payload = payload(orderId);
+        when(dedupStorePort.tryReserve(eq(orderId), eq(payload.eventId()), any())).thenReturn(true);
         when(persistencePort.isAlreadyProcessed(orderId)).thenReturn(true);
 
         useCase.handle(payload, 0, 43L);
 
         verify(persistencePort, never()).markProcessed(any(), anyInt(), anyLong());
+        verify(idempotencyMetrics).miss();
         verify(metrics).duplicate();
         verifyNoInteractions(pricingClient);
         verifyNoInteractions(deadLetterPort);
@@ -100,14 +130,12 @@ class OrderConsumerUseCaseTest {
     @Test
     void handle_rejectsMissingRegion() {
         OrderEventPayload payload = new OrderEventPayload(
-                UUID.randomUUID(), UUID.randomUUID(), " ", new BigDecimal("10.00"),
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), " ", new BigDecimal("10.00"),
                 OrderPriority.LOW, List.of(line()), Instant.now()
         );
 
         assertThrows(IllegalArgumentException.class, () -> useCase.handle(payload, 0, 1L));
-        verify(persistencePort, never()).isAlreadyProcessed(any());
-        verifyNoInteractions(pricingClient);
-        verifyNoInteractions(deadLetterPort);
+        verifyNoInteractions(dedupStorePort, persistencePort, pricingClient, deadLetterPort);
     }
 
     @Test
@@ -115,6 +143,7 @@ class OrderConsumerUseCaseTest {
         UUID orderId = UUID.randomUUID();
         OrderEventPayload payload = payload(orderId);
         RuntimeException cause = new RuntimeException("pricing service down");
+        when(dedupStorePort.tryReserve(eq(orderId), eq(payload.eventId()), any())).thenReturn(true);
         when(persistencePort.isAlreadyProcessed(orderId)).thenReturn(false);
         when(pricingClient.fetchDiscount(orderId, "EU"))
                 .thenThrow(new PricingUnavailableException(orderId, cause));
@@ -129,7 +158,7 @@ class OrderConsumerUseCaseTest {
 
     private static OrderEventPayload payload(UUID orderId) {
         return new OrderEventPayload(
-                orderId, UUID.randomUUID(), "EU", new BigDecimal("99.90"),
+                UUID.randomUUID(), orderId, UUID.randomUUID(), "EU", new BigDecimal("99.90"),
                 OrderPriority.HIGH, List.of(line()), Instant.now()
         );
     }

@@ -54,6 +54,10 @@ app:
     cleanup:
       retention-days: 7
       cron: "0 0 3 * * *"
+  idempotency:
+    ttl-hours: 48
+    cleanup:
+      cron: "0 15 3 * * *"
 
 resilience4j:
   retry:
