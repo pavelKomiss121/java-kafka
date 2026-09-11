@@ -11,6 +11,7 @@ import ru.mentee.power.orders.adapters.metrics.ConsumerMetricsRegistry;
 import ru.mentee.power.orders.adapters.metrics.IdempotencyMetricsRegistry;
 import ru.mentee.power.orders.adapters.metrics.OutboxMetricsRegistry;
 import ru.mentee.power.orders.adapters.metrics.ProducerMetricsRegistry;
+import ru.mentee.power.orders.adapters.metrics.SagaMetricsRegistry;
 import ru.mentee.power.orders.adapters.web.dto.*;
 import ru.mentee.power.orders.adapters.web.mapper.OrderMapper;
 import ru.mentee.power.orders.ports.incoming.PlaceOrderPort;
@@ -29,6 +30,7 @@ public class OrderController {
     private final ConsumerMetricsRegistry consumerMetricsRegistry;
     private final OutboxMetricsRegistry outboxMetricsRegistry;
     private final IdempotencyMetricsRegistry idempotencyMetricsRegistry;
+    private final SagaMetricsRegistry sagaMetricsRegistry;
 
     public OrderController(
             PlaceOrderPort placeOrderPort,
@@ -36,7 +38,8 @@ public class OrderController {
             ProducerMetricsRegistry metricsRegistry,
             ConsumerMetricsRegistry consumerMetricsRegistry,
             OutboxMetricsRegistry outboxMetricsRegistry,
-            IdempotencyMetricsRegistry idempotencyMetricsRegistry
+            IdempotencyMetricsRegistry idempotencyMetricsRegistry,
+            SagaMetricsRegistry sagaMetricsRegistry
     ) {
         this.placeOrderPort = placeOrderPort;
         this.orderMapper = orderMapper;
@@ -44,6 +47,7 @@ public class OrderController {
         this.consumerMetricsRegistry = consumerMetricsRegistry;
         this.outboxMetricsRegistry = outboxMetricsRegistry;
         this.idempotencyMetricsRegistry = idempotencyMetricsRegistry;
+        this.sagaMetricsRegistry = sagaMetricsRegistry;
     }
 
     @PostMapping
@@ -68,15 +72,20 @@ public class OrderController {
                 snapshot.pending(), snapshot.sentTotal(), snapshot.failedTotal(), snapshot.deadTotal());
     }
 
-    /**
-     * Метрики idempotency: сколько доставок отсеяно как дубль / обработано впервые /
-     * вычищено по TTL, и сколько строк сейчас активно в consumer_event_dedup.
-     */
     @GetMapping("/idempotency/metrics")
     public IdempotencyMetricsResponse idempotencyMetrics() {
         IdempotencyMetricsRegistry.Snapshot snapshot = idempotencyMetricsRegistry.snapshot();
         return new IdempotencyMetricsResponse(
                 snapshot.hitTotal(), snapshot.missTotal(), snapshot.evictedTotal());
+    }
+
+    /**
+     * Метрики саги: сколько саг сейчас в работе и сколько компенсаций
+     * произошло за всё время (теория §4).
+     */
+    @GetMapping("/saga/metrics")
+    public SagaMetricsResponse sagaMetrics() {
+        return new SagaMetricsResponse(sagaMetricsRegistry.activeSagas(), sagaMetricsRegistry.compensationTotal());
     }
 
     @GetMapping("/consumers/metrics")
@@ -95,7 +104,7 @@ public class OrderController {
     }
 
     /**
-     * Метрики объявлены ДО /{orderId}, иначе Spring примет "metrics"/"outbox"/"idempotency" как UUID.
+     * Метрики объявлены ДО /{orderId}, иначе Spring примет "metrics"/"outbox"/"idempotency"/"saga" как UUID.
      */
     @GetMapping("/metrics")
     public ProducerMetricsResponse metrics() {
@@ -115,7 +124,7 @@ public class OrderController {
 
     @GetMapping("/{orderId}")
     public ResponseEntity<OrderResponse> getOrder(@PathVariable UUID orderId) {
-        // TODO MKAFKA-07: читать из БД — НЕ относится к идемпотентности, отдельная задача
+        // TODO MKAFKA-07: читать из БД — не относится ни к идемпотентности, ни к саге
         return ResponseEntity.status(501).build();
     }
 }
