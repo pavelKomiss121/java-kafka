@@ -54,15 +54,15 @@ class OrderConsumerUseCaseTest {
     }
 
     @Test
-    void handle_savesNewOrder_andRecordsMetric() {
+    void handle_marksProcessed_andRecordsMetric() {
         UUID orderId = UUID.randomUUID();
         OrderEventPayload payload = payload(orderId);
-        when(persistencePort.existsById(orderId)).thenReturn(false);
+        when(persistencePort.isAlreadyProcessed(orderId)).thenReturn(false);
         when(pricingClient.fetchDiscount(orderId, "EU")).thenReturn(BigDecimal.ZERO);
 
         useCase.handle(payload, 0, 42L);
 
-        verify(persistencePort).save(any(), anyInt(), anyLong());
+        verify(persistencePort).markProcessed(any(), anyInt(), anyLong());
         verify(metrics).processed(OrderPriority.HIGH, "EU");
         verify(metrics, never()).duplicate();
         verify(metrics, never()).dlq(any());
@@ -70,28 +70,28 @@ class OrderConsumerUseCaseTest {
     }
 
     @Test
-    void handle_appliesDiscountToSavedAmount() {
+    void handle_appliesDiscountToProcessedAmount() {
         UUID orderId = UUID.randomUUID();
         OrderEventPayload payload = payload(orderId);
-        when(persistencePort.existsById(orderId)).thenReturn(false);
+        when(persistencePort.isAlreadyProcessed(orderId)).thenReturn(false);
         when(pricingClient.fetchDiscount(orderId, "EU")).thenReturn(new BigDecimal("0.05"));
 
         useCase.handle(payload, 0, 42L);
 
         ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
-        verify(persistencePort).save(orderCaptor.capture(), anyInt(), anyLong());
+        verify(persistencePort).markProcessed(orderCaptor.capture(), anyInt(), anyLong());
         assertEquals(0, new BigDecimal("94.905").compareTo(orderCaptor.getValue().getAmount()));
     }
 
     @Test
-    void handle_skipsDuplicate() {
+    void handle_skipsAlreadyProcessed() {
         UUID orderId = UUID.randomUUID();
         OrderEventPayload payload = payload(orderId);
-        when(persistencePort.existsById(orderId)).thenReturn(true);
+        when(persistencePort.isAlreadyProcessed(orderId)).thenReturn(true);
 
         useCase.handle(payload, 0, 43L);
 
-        verify(persistencePort, never()).save(any(), anyInt(), anyLong());
+        verify(persistencePort, never()).markProcessed(any(), anyInt(), anyLong());
         verify(metrics).duplicate();
         verifyNoInteractions(pricingClient);
         verifyNoInteractions(deadLetterPort);
@@ -105,7 +105,7 @@ class OrderConsumerUseCaseTest {
         );
 
         assertThrows(IllegalArgumentException.class, () -> useCase.handle(payload, 0, 1L));
-        verify(persistencePort, never()).existsById(any());
+        verify(persistencePort, never()).isAlreadyProcessed(any());
         verifyNoInteractions(pricingClient);
         verifyNoInteractions(deadLetterPort);
     }
@@ -115,7 +115,7 @@ class OrderConsumerUseCaseTest {
         UUID orderId = UUID.randomUUID();
         OrderEventPayload payload = payload(orderId);
         RuntimeException cause = new RuntimeException("pricing service down");
-        when(persistencePort.existsById(orderId)).thenReturn(false);
+        when(persistencePort.isAlreadyProcessed(orderId)).thenReturn(false);
         when(pricingClient.fetchDiscount(orderId, "EU"))
                 .thenThrow(new PricingUnavailableException(orderId, cause));
 
@@ -123,7 +123,7 @@ class OrderConsumerUseCaseTest {
 
         verify(deadLetterPort).publish(eq(payload), eq(2), eq(77L), eq(cause));
         verify(metrics).dlq(OrderPriority.HIGH);
-        verify(persistencePort, never()).save(any(), anyInt(), anyLong());
+        verify(persistencePort, never()).markProcessed(any(), anyInt(), anyLong());
         verify(metrics, never()).processed(any(), any());
     }
 

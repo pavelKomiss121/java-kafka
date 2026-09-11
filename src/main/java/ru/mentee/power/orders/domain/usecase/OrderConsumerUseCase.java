@@ -44,7 +44,10 @@ public class OrderConsumerUseCase implements ProcessOrderEventPort {
     public void handle(OrderEventPayload payload, int partition, long offset) {
         validate(payload);
 
-        if (persistencePort.existsById(payload.orderId())) {
+        // MKAFKA-06: строка в orders теперь существует ДО этого события (её создал
+        // PlaceOrderUseCase.savePending через outbox) — "уже обработано" проверяем
+        // по processedAt, а не по факту существования строки (теория §2.2).
+        if (persistencePort.isAlreadyProcessed(payload.orderId())) {
             metrics.duplicate();
             log.info("Duplicate order event skipped: orderId={}, partition={}, offset={}",
                     payload.orderId(), partition, offset);
@@ -63,7 +66,7 @@ public class OrderConsumerUseCase implements ProcessOrderEventPort {
         }
 
         Order order = toDomain(payload, discount);
-        persistencePort.save(order, partition, offset);
+        persistencePort.markProcessed(order, partition, offset);
         metrics.processed(payload.priority(), payload.region());
     }
 

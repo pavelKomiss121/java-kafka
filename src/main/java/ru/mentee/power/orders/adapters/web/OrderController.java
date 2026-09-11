@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.mentee.power.orders.adapters.metrics.ConsumerMetricsRegistry;
+import ru.mentee.power.orders.adapters.metrics.OutboxMetricsRegistry;
 import ru.mentee.power.orders.adapters.metrics.ProducerMetricsRegistry;
 import ru.mentee.power.orders.adapters.web.dto.*;
 import ru.mentee.power.orders.adapters.web.mapper.OrderMapper;
@@ -16,10 +17,11 @@ import ru.mentee.power.orders.ports.incoming.PlaceOrderPort;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CompletionException;
 
 /**
  * HTTP-адаптер: только транспорт. Бизнес — через PlaceOrderPort.
+ * MKAFKA-06: ветка catch (CompletionException) убрана — Kafka больше не вызывается
+ * синхронно из createOrder(...), она физически не может сюда долететь.
  */
 @RestController
 @RequestMapping("/api/v1/orders")
@@ -29,17 +31,20 @@ public class OrderController {
     private final OrderMapper orderMapper;
     private final ProducerMetricsRegistry metricsRegistry;
     private final ConsumerMetricsRegistry consumerMetricsRegistry;
+    private final OutboxMetricsRegistry outboxMetricsRegistry;
 
     public OrderController(
             PlaceOrderPort placeOrderPort,
             OrderMapper orderMapper,
             ProducerMetricsRegistry metricsRegistry,
-            ConsumerMetricsRegistry consumerMetricsRegistry
+            ConsumerMetricsRegistry consumerMetricsRegistry,
+            OutboxMetricsRegistry outboxMetricsRegistry
     ) {
         this.placeOrderPort = placeOrderPort;
         this.orderMapper = orderMapper;
         this.metricsRegistry = metricsRegistry;
         this.consumerMetricsRegistry = consumerMetricsRegistry;
+        this.outboxMetricsRegistry = outboxMetricsRegistry;
     }
 
     @PostMapping
@@ -51,10 +56,6 @@ public class OrderController {
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.badRequest()
                     .body(new ErrorResponse("ORDER_VALIDATION_FAILED", ex.getMessage()));
-        } catch (CompletionException ex) {
-            Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
-            return ResponseEntity.internalServerError()
-                    .body(new ErrorResponse("ORDER_DISPATCH_FAILED", cause.getMessage()));
         } catch (Exception ex) {
             return ResponseEntity.internalServerError()
                     .body(new ErrorResponse("ORDER_DISPATCH_FAILED", ex.getMessage()));
@@ -62,8 +63,18 @@ public class OrderController {
     }
 
     /**
+     * Метрики outbox: сколько событий ждут публикации / опубликовано / упало / умерло.
+     * Человекочитаемая проекция того же состояния, что отдаёт /actuator/prometheus.
+     */
+    @GetMapping("/outbox/metrics")
+    public OutboxMetricsResponse outboxMetrics() {
+        OutboxMetricsRegistry.Snapshot snapshot = outboxMetricsRegistry.snapshot();
+        return new OutboxMetricsResponse(
+                snapshot.pending(), snapshot.sentTotal(), snapshot.failedTotal(), snapshot.deadTotal());
+    }
+
+    /**
      * Метрики consumer'а: сколько заказов из Kafka реально долетело до БД.
-     * Отдельный путь от продюсерских /metrics — считают разные вещи (send vs persist).
      */
     @GetMapping("/consumers/metrics")
     public ConsumerMetricsResponse consumerMetrics() {
@@ -81,7 +92,7 @@ public class OrderController {
     }
 
     /**
-     * Метрики объявлены ДО /{orderId}, иначе Spring примет "metrics" как UUID.
+     * Метрики объявлены ДО /{orderId}, иначе Spring примет "metrics"/"outbox" как UUID.
      */
     @GetMapping("/metrics")
     public ProducerMetricsResponse metrics() {
@@ -101,7 +112,7 @@ public class OrderController {
 
     @GetMapping("/{orderId}")
     public ResponseEntity<OrderResponse> getOrder(@PathVariable UUID orderId) {
-        // TODO MKAFKA-04: читать из БД
+        // TODO MKAFKA-07: читать из БД
         return ResponseEntity.status(501).build();
     }
 }

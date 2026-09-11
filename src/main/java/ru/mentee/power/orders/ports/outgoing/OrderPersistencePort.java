@@ -10,7 +10,9 @@ import java.util.UUID;
  */
 public interface OrderPersistencePort {
 
-    boolean existsById(UUID orderId);
+    boolean isAlreadyProcessed(UUID orderId);
 
-    void save(Order order, int partition, long offset);
+    void savePending(Order order);
+
+    void markProcessed(Order order, int partition, long offset);
 }

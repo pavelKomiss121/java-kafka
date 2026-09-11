@@ -1,33 +1,35 @@
 package ru.mentee.power.orders.domain.usecase;
 
+import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 import ru.mentee.power.orders.domain.model.Order;
 import ru.mentee.power.orders.domain.model.OrderLine;
 import ru.mentee.power.orders.ports.incoming.PlaceOrderPort;
 import ru.mentee.power.orders.ports.outgoing.OrderEventPayload;
-import ru.mentee.power.orders.ports.outgoing.OrderEventPort;
+import ru.mentee.power.orders.ports.outgoing.OrderPersistencePort;
+import ru.mentee.power.orders.ports.outgoing.OutboxStorePort;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Use case = сценарий «оформить заказ».
- * Знает бизнес-правила и исходящий порт, но не знает HTTP и KafkaTemplate.
+ * Use case = сценарий «оформить заказ». С MKAFKA-06 не знает про Kafka вообще —
+ * только сохраняет заказ и намерение опубликовать событие, одной транзакцией.
+ * Публикацией занимается отдельный OutboxDispatchUseCase, вызываемый планировщиком.
  */
 @Service
 public class PlaceOrderUseCase implements PlaceOrderPort {
 
-    private final OrderEventPort orderEventPort;
-    private final Map<UUID, Order> inMemoryStore = new ConcurrentHashMap<>();
+    private final OrderPersistencePort persistencePort;
+    private final OutboxStorePort outboxStorePort;
 
-    public PlaceOrderUseCase(OrderEventPort orderEventPort) {
-        this.orderEventPort = orderEventPort;
+    public PlaceOrderUseCase(OrderPersistencePort persistencePort, OutboxStorePort outboxStorePort) {
+        this.persistencePort = persistencePort;
+        this.outboxStorePort = outboxStorePort;
     }
 
     @Override
+    @Transactional
     public PlaceOrderResult place(PlaceOrderCommand command) {
         validate(command);
 
@@ -39,14 +41,10 @@ public class PlaceOrderUseCase implements PlaceOrderPort {
                 command.lines()
         );
 
-        inMemoryStore.put(order.getId(), order);
-        // TODO MKAFKA-04: OrderRepository.save(...)
+        persistencePort.savePending(order);
 
         OrderEventPayload payload = OrderEventPayload.from(order);
-
-        orderEventPort.publish(payload, order.getPriority())
-                .toCompletableFuture()
-                .join();
+        outboxStorePort.append(order.getId(), payload);
 
         return new PlaceOrderResult(order.getId(), "QUEUED", Instant.now());
     }

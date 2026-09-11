@@ -39,6 +39,8 @@ app:
       normal: orders.priority.normal
       low: orders.priority.low
       dlq: orders.priority.dlq
+  outbox:
+    scheduler-enabled: false
 
 pricing:
   base-url: http://localhost:8081

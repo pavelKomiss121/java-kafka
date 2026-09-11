@@ -46,6 +46,8 @@ dependencies {
     runtimeOnly("com.h2database:h2")
     // Тесты: мок внешнего HTTP-сервиса для проверки retry/fallback
     testImplementation("org.wiremock:wiremock-standalone:3.9.2")
+    // Метрики outbox: Micrometer + Prometheus registry, /actuator/prometheus
+    implementation("io.micrometer:micrometer-registry-prometheus")
 }
 
 tasks.withType<Test> {
