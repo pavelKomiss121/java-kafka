@@ -7,8 +7,10 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
+import ru.mentee.power.orders.adapters.persistence.OrderEntity;
 import ru.mentee.power.orders.adapters.persistence.OrderRepository;
 import ru.mentee.power.orders.domain.model.OrderPriority;
+import ru.mentee.power.orders.domain.model.OrderStatus;
 import ru.mentee.power.orders.ports.outgoing.OrderEventPayload;
 import ru.mentee.power.orders.ports.outgoing.PricingClient;
 
@@ -24,8 +26,10 @@ import static org.mockito.Mockito.when;
 
 /**
  * Проверяет только Kafka-пайплайн (listener -> use case -> persistence).
- * Вызов внешнего сервиса скидок замокан — его retry/fallback/DLQ отдельно
- * покрыты PricingHttpClientRetryTest, без embedded Kafka.
+ * С MKAFKA-06 строка в orders обязана существовать ДО прихода сообщения (её создаёт
+ * PlaceOrderUseCase.savePending через outbox в реальном пайплайне) — этот тест
+ * теперь готовит её вручную перед отправкой, иначе markProcessed бросит
+ * IllegalStateException ("Order must already exist").
  */
 @SpringBootTest
 @ActiveProfiles("itest")
@@ -44,7 +48,7 @@ class OrderEventListenerIntegrationTest {
     private PricingClient pricingClient;
 
     @Test
-    void listenerPersistsOrderFromKafkaEvent() throws InterruptedException {
+    void listenerMarksOrderProcessed_whenPendingRowAlreadyExists() throws InterruptedException {
         when(pricingClient.fetchDiscount(any(), anyString())).thenReturn(BigDecimal.ZERO);
 
         UUID orderId = UUID.randomUUID();
@@ -58,14 +62,25 @@ class OrderEventListenerIntegrationTest {
                 Instant.now()
         );
 
+        OrderEntity pending = new OrderEntity();
+        pending.setId(orderId);
+        pending.setCustomerId(payload.customerId());
+        pending.setRegion(payload.region());
+        pending.setPriority(payload.priority().name());
+        pending.setAmount(payload.amount());
+        pending.setStatus(OrderStatus.NEW.name());
+        pending.setCreatedAt(Instant.now());
+        orderRepository.save(pending);
+
         kafkaTemplate.send("orders.priority.high", "EU", payload);
 
         long deadline = System.currentTimeMillis() + 10_000;
-        while (System.currentTimeMillis() < deadline && orderRepository.findById(orderId).isEmpty()) {
+        while (System.currentTimeMillis() < deadline
+                && orderRepository.findById(orderId).map(OrderEntity::getProcessedAt).isEmpty()) {
             Thread.sleep(200);
         }
 
-        assertTrue(orderRepository.findById(orderId).isPresent(),
-                "Order should be persisted by OrderEventListener within timeout");
+        assertTrue(orderRepository.findById(orderId).map(OrderEntity::getProcessedAt).isPresent(),
+                "Order should be marked processed by OrderEventListener within timeout");
     }
 }

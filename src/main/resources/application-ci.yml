@@ -23,3 +23,5 @@ app:
       high: orders.priority.high
       normal: orders.priority.normal
       low: orders.priority.low
+  outbox:
+    scheduler-enabled: false
