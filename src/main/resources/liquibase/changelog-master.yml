@@ -7,3 +7,5 @@ databaseChangeLog:
       file: liquibase/changesets/20260906-create-order-lines-table.sql
   - include:
       file: liquibase/changesets/20260907-create-outbox-event-table.sql
+  - include:
+      file: liquibase/changesets/20260911-create-consumer-event-dedup-table.sql

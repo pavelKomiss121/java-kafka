@@ -64,7 +64,7 @@ class OutboxDispatchUseCaseTest {
 
     @Test
     void dispatchDueBatch_marksFailed_whenAttemptsBelowLimit() {
-        OutboxEvent event = event(0); // maxAttempts=3, attempts=0 -> ещё есть попытки
+        OutboxEvent event = event(0);
         when(outboxStorePort.fetchDueBatch(10)).thenReturn(List.of(event));
         when(orderEventPort.publish(any(), any())).thenReturn(failedFuture());
 
@@ -79,7 +79,7 @@ class OutboxDispatchUseCaseTest {
 
     @Test
     void dispatchDueBatch_marksDead_whenAttemptsExhausted() {
-        OutboxEvent event = event(2); // maxAttempts=3, attempts=2 -> следующая попытка последняя
+        OutboxEvent event = event(2);
         when(outboxStorePort.fetchDueBatch(10)).thenReturn(List.of(event));
         when(orderEventPort.publish(any(), any())).thenReturn(failedFuture());
 
@@ -100,7 +100,7 @@ class OutboxDispatchUseCaseTest {
 
     private static OutboxEvent event(int attempts) {
         OrderEventPayload payload = new OrderEventPayload(
-                UUID.randomUUID(), UUID.randomUUID(), "EU", new BigDecimal("10.00"),
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "EU", new BigDecimal("10.00"),
                 OrderPriority.HIGH, List.of(), Instant.now()
         );
         return new OutboxEvent(UUID.randomUUID(), payload.orderId(), payload, attempts);

@@ -24,21 +24,13 @@ public class JpaOutboxStoreAdapter implements OutboxStorePort {
 
     @Override
     public void append(UUID orderId, OrderEventPayload payload) {
+        // MKAFKA-07: id строки = eventId доставки, а не независимый UUID.randomUUID() —
+        // так outbox_event.id и OrderEventPayload.eventId() физически совпадают
+        // на всех повторных попытках публикации (теория §2.1).
         OutboxEventEntity entity = new OutboxEventEntity(
-                UUID.randomUUID(), orderId, "OrderCreated", writeJson(payload), Instant.now());
+                payload.eventId(), orderId, "OrderCreated", writeJson(payload), Instant.now());
         repository.save(entity);
     }
-
-    /**
-     * Почему статус сразу переводится в DISPATCHING внутри ЭТОЙ ЖЕ транзакции,
-     * а не просто возвращается результат SELECT ... FOR UPDATE: блокировка строк
-     * снимается в момент коммита этого метода (конец транзакции), то есть сразу
-     * после выборки — задолго до того, как реальная публикация в Kafka завершится.
-     * Если бы статус оставался NEW, второй тик планировщика (или второй инстанс)
-     * мог бы выбрать те же строки повторно, пока первый ещё их публикует.
-     * DISPATCHING делает захват необратимым сразу после коммита — SKIP LOCKED
-     * после этого момента уже не нужен, строки физически не NEW/FAILED.
-     */
 
     @Override
     @Transactional

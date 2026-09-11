@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.mentee.power.orders.adapters.metrics.ConsumerMetricsRegistry;
+import ru.mentee.power.orders.adapters.metrics.IdempotencyMetricsRegistry;
 import ru.mentee.power.orders.adapters.metrics.OutboxMetricsRegistry;
 import ru.mentee.power.orders.adapters.metrics.ProducerMetricsRegistry;
 import ru.mentee.power.orders.adapters.web.dto.*;
@@ -18,11 +19,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * HTTP-адаптер: только транспорт. Бизнес — через PlaceOrderPort.
- * MKAFKA-06: ветка catch (CompletionException) убрана — Kafka больше не вызывается
- * синхронно из createOrder(...), она физически не может сюда долететь.
- */
 @RestController
 @RequestMapping("/api/v1/orders")
 public class OrderController {
@@ -32,19 +28,22 @@ public class OrderController {
     private final ProducerMetricsRegistry metricsRegistry;
     private final ConsumerMetricsRegistry consumerMetricsRegistry;
     private final OutboxMetricsRegistry outboxMetricsRegistry;
+    private final IdempotencyMetricsRegistry idempotencyMetricsRegistry;
 
     public OrderController(
             PlaceOrderPort placeOrderPort,
             OrderMapper orderMapper,
             ProducerMetricsRegistry metricsRegistry,
             ConsumerMetricsRegistry consumerMetricsRegistry,
-            OutboxMetricsRegistry outboxMetricsRegistry
+            OutboxMetricsRegistry outboxMetricsRegistry,
+            IdempotencyMetricsRegistry idempotencyMetricsRegistry
     ) {
         this.placeOrderPort = placeOrderPort;
         this.orderMapper = orderMapper;
         this.metricsRegistry = metricsRegistry;
         this.consumerMetricsRegistry = consumerMetricsRegistry;
         this.outboxMetricsRegistry = outboxMetricsRegistry;
+        this.idempotencyMetricsRegistry = idempotencyMetricsRegistry;
     }
 
     @PostMapping
@@ -62,10 +61,6 @@ public class OrderController {
         }
     }
 
-    /**
-     * Метрики outbox: сколько событий ждут публикации / опубликовано / упало / умерло.
-     * Человекочитаемая проекция того же состояния, что отдаёт /actuator/prometheus.
-     */
     @GetMapping("/outbox/metrics")
     public OutboxMetricsResponse outboxMetrics() {
         OutboxMetricsRegistry.Snapshot snapshot = outboxMetricsRegistry.snapshot();
@@ -74,8 +69,16 @@ public class OrderController {
     }
 
     /**
-     * Метрики consumer'а: сколько заказов из Kafka реально долетело до БД.
+     * Метрики idempotency: сколько доставок отсеяно как дубль / обработано впервые /
+     * вычищено по TTL, и сколько строк сейчас активно в consumer_event_dedup.
      */
+    @GetMapping("/idempotency/metrics")
+    public IdempotencyMetricsResponse idempotencyMetrics() {
+        IdempotencyMetricsRegistry.Snapshot snapshot = idempotencyMetricsRegistry.snapshot();
+        return new IdempotencyMetricsResponse(
+                snapshot.hitTotal(), snapshot.missTotal(), snapshot.evictedTotal());
+    }
+
     @GetMapping("/consumers/metrics")
     public ConsumerMetricsResponse consumerMetrics() {
         ConsumerMetricsRegistry.Snapshot snapshot = consumerMetricsRegistry.snapshot();
@@ -92,7 +95,7 @@ public class OrderController {
     }
 
     /**
-     * Метрики объявлены ДО /{orderId}, иначе Spring примет "metrics"/"outbox" как UUID.
+     * Метрики объявлены ДО /{orderId}, иначе Spring примет "metrics"/"outbox"/"idempotency" как UUID.
      */
     @GetMapping("/metrics")
     public ProducerMetricsResponse metrics() {
@@ -112,7 +115,7 @@ public class OrderController {
 
     @GetMapping("/{orderId}")
     public ResponseEntity<OrderResponse> getOrder(@PathVariable UUID orderId) {
-        // TODO MKAFKA-07: читать из БД
+        // TODO MKAFKA-07: читать из БД — НЕ относится к идемпотентности, отдельная задача
         return ResponseEntity.status(501).build();
     }
 }
